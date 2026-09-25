@@ -1,0 +1,5 @@
+# local dev link created by scripts/dev-link.*; points at skills/tv-ta
+.claude/skills/tv-ta
+.claude/settings.local.json
+__pycache__/
+.gstack/

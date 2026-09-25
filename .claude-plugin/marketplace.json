@@ -1,0 +1,15 @@
+{
+  "name": "crypto-watch",
+  "description": "Agent skills for crypto-watch technical analysis.",
+  "owner": {
+    "name": "Jacob Hsu",
+    "url": "https://github.com/JacobHsu"
+  },
+  "plugins": [
+    {
+      "name": "crypto-watch",
+      "description": "tv-ta: numeric TradingView checklist (28 indicators, multi-timeframe) with tunable weights, BUY / WAIT / SELL and entry / stop / targets.",
+      "source": "./"
+    }
+  ]
+}

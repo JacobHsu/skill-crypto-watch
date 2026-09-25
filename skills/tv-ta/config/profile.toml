@@ -1,0 +1,82 @@
+# tv-ta global profile: how node answers become a decision and a trade plan.
+# Per-symbol node overrides live in config/symbols/<sym>.toml.
+
+[decision]
+# composite = weighted average of node scores (Jev composite-scoring style)
+# checklist = check.html tally (BUY/SELL share of checked items >= checklist_majority)
+# Both are always reported; `primary` picks the headline verdict.
+primary = "composite"
+buy_above = 0.5            # composite score (-2..+2) at or above this -> BUY
+sell_below = -0.5          # at or below this -> SELL
+checklist_majority = 0.6
+signal_threshold = 0.5     # a node with |score| >= this counts as BUY/SELL in the tally
+
+# Confidence routing: weighted agreement (share of weight on the composite's side) stands in
+# for Jev's confidence. A BUY/SELL with agreement below min_agreement is downgraded to WAIT.
+# Off until replayed on more symbols / timeframes: python scripts/replay.py BTC --tf 4h
+[decision.routing]
+enabled = false
+min_agreement = 0.6
+
+[timeframes]
+default = "4h"
+context = ["1h", "4h", "1d"]   # also summarised so you see whether the others agree
+bars = 500
+live = false                   # true = include the still-forming candle (matches the chart right now)
+
+# higher timeframe drawn by the Multi-Time Period colour blocks, per chart timeframe
+[timeframes.htf]
+"15m" = "4h"
+"1h" = "1d"
+"4h" = "1w"
+"1d" = "1M"
+
+# Gates: a Noul node scales the weight of whole groups.
+#   multiplier = 1 - p * (1 - floor)        where p = the gate's noul,
+#   or with invert = true, p is replaced by (1 - noul).
+[[gate]]
+node = "choppy"               # CHECK.md: CI > 61.8 lowers the reliability of trend signals
+groups = ["trend", "ma", "structure"]
+floor = 0.5
+
+[[gate]]
+node = "trend_established"    # ADX below 25: trend-following votes count less
+groups = ["trend", "ma"]
+invert = true
+floor = 0.75
+
+# Indicator parameters. Defaults match the TradingView built-ins on the crypto-watch widgets;
+# uncomment to change. Any key here overrides the default in scripts/nodes.py Context.
+[indicators]
+# ma = { fast = 20, slow = 50 }
+# ma_cross = { short = 9, long = 21 }
+# bb = { length = 20, mult = 2.0 }
+# kc = { length = 20, mult = 2.0, atr_length = 10 }
+# supertrend = { atr_length = 10, factor = 3.0 }
+# zigzag = { deviation = 5.0, depth = 10 }   # 5% rarely forms swings on 1h; lower it there if needed
+# linreg = { length = 100 }
+
+[plan]
+stop_atr_min = 1.5        # stop at least this many ATR from entry
+stop_atr_max = 4.0        # structural stops further than this are capped
+entry_support_atr = 1.5   # supports within this many ATR below price define the entry zone
+target_rr = 2.0           # T2 = entry + target_rr x risk
+
+[jev]
+# Optional: ask TypeSafe Jev instead of the code rule for nodes that define `jev = {...}`.
+# Needs TYPESAFE_API_KEY in the environment; on any failure the code rule result is kept.
+enabled = false
+model = "jev-latest"
+endpoint = "https://api.typesafe.ai/v1/systemone"
+timeout = 20
+
+[updown]
+# Daily "Up or Down" prediction questions (scripts/updown.py).
+# P(Up) = volatility base + scale x average composite of these timeframes, tilt capped at max_tilt.
+# scale is not calibrated yet: replay past questions with --as-of before trusting it.
+timeframes = ["1h", "4h", "1d"]   # same timeframes as the check.html TradingView widgets
+scale = 5.0        # percentage points per composite point
+max_tilt = 10.0    # the technical lean never moves P(Up) more than this
+# Times in the report are shown in this zone, matching what the Binance page shows the user.
+display_utc_offset = 8
+display_tz_name = "台灣時間"

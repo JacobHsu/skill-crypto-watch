@@ -1,0 +1,37 @@
+# BTC calibration, from the py-tvscreener indicator backtest
+# (distilled in crypto-watch skills/technical-analyst/references/symbol_calibration_notes.md).
+# Caveats: the backtest read 1h indicator values against the next 24h, on a bull-biased sample
+# (2026-02 onward). Treat these as directional nudges and re-check when the report is regenerated.
+
+# Ultimate Oscillator > 70 -> down: +16.6pp, the strongest single signal for BTC.
+# UO < 30 -> up is negative (-9.8pp), so the oversold side does not vote.
+[nodes.uo]
+weight = 2.0
+params = { overbought_score = -1, oversold_score = 0 }
+
+# RSI > 70 -> down: +5.2pp. RSI < 30 does not predict a bounce for BTC.
+[nodes.rsi]
+params = { overbought_score = -1, oversold_score = 0 }
+
+# MFI > 80 -> down: +6.4pp.
+[nodes.mfi]
+params = { overbought_score = -1 }
+
+# ~0 edge for BTC: ADX/DI direction, SAR side, SMA/EMA crosses and orderings.
+[nodes.dmi]
+weight = 0.5
+
+[nodes.psar]
+weight = 0.5
+
+[nodes.ma_cross]
+weight = 0.5
+
+[nodes.ma_20_50]
+weight = 0.5
+
+[nodes.ema_20_50]
+weight = 0.5
+
+[nodes.ma_x_ema]
+weight = 0.5

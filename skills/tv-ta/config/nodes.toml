@@ -1,0 +1,596 @@
+# tv-ta decision nodes
+#
+# One [[node]] per checklist item, in the order of crypto-watch check.html.
+# Fields:
+#   id        stable key (logs, symbol overrides and Jev answers use it)
+#   section   A = {symbol}.html (19 items), B = o/{symbol}.html (17 items), gate = not a vote
+#   name/zh   display names, matching check.html
+#   group     trend | channel | ma | momentum | volatility | volume | structure
+#             gates scale weights by group (see profile.toml [[gate]])
+#   type      score (-2..+2) | choice (category mapped to a score) | noul (0..1 gate)
+#   rule      rule function in scripts/nodes.py
+#   weight    vote weight in the composite score; 0 disables the vote but still shows the row
+#   enabled   false = not evaluated at all (kept for check.html parity)
+#   params    thresholds the rule reads; tune these instead of editing code
+#   jev       optional TypeSafe Jev question; used only when profile.toml [jev] enabled = true
+#             and TYPESAFE_API_KEY is set. See references/node_design.md.
+#
+# Per-symbol changes go in config/symbols/<sym>.toml, not here.
+
+# ============================================================ SECTION A · {symbol}.html
+# ---------- COL 1 — TREND
+
+[[node]]
+id = "mtp"
+section = "A"
+name = "MULTI-TIME PERIOD"
+zh = "多時間框架"
+group = "trend"
+type = "score"
+rule = "mtp"
+weight = 1.0
+# Counts green vs red higher-timeframe candles, as the chart's colour blocks show them.
+# Higher timeframe per chart timeframe: profile.toml [timeframes.htf]
+params = { count = 11, majority = 0.6 }
+
+[[node]]
+id = "fractals"
+section = "A"
+name = "WILLIAMS FRACTALS"
+zh = "威廉碎形"
+group = "structure"
+type = "choice"
+rule = "fractals"
+weight = 1.0
+params = {}
+
+[[node]]
+id = "alligator"
+section = "A"
+name = "WILLIAMS ALLIGATOR"
+zh = "威廉鱷魚"
+group = "trend"
+type = "choice"
+rule = "alligator"
+weight = 1.0
+# below min_spread_atr (lines spread / ATR) the alligator counts as sleeping
+params = { min_spread_atr = 0.3 }
+
+[[node]]
+id = "alligator_x_fractal"
+section = "A"
+name = "↳ ALLIGATOR × FRACTAL"
+zh = "鱷魚確認碎形"
+group = "trend"
+type = "score"
+rule = "alligator_x_fractal"
+weight = 1.0
+params = {}
+
+[[node]]
+id = "psar"
+section = "A"
+name = "PARABOLIC SAR"
+zh = "拋物線停損"
+group = "trend"
+type = "score"
+rule = "psar"
+weight = 1.0
+params = { fresh_bars = 3 }
+
+# ---------- COL 2 — CHANNEL
+
+[[node]]
+id = "bb"
+section = "A"
+name = "BOLLINGER BANDS"
+zh = "布林通道"
+group = "channel"
+type = "score"
+rule = "bollinger"
+weight = 1.0
+params = { width_lookback = 3 }
+
+[[node]]
+id = "kc"
+section = "A"
+name = "KELTNER CHANNEL"
+zh = "肯特納通道"
+group = "channel"
+type = "score"
+rule = "keltner"
+weight = 1.0
+# "站穩" = this many consecutive closes outside the band
+params = { hold_bars = 2 }
+
+[[node]]
+id = "squeeze"
+section = "A"
+name = "BB / KC SQUEEZE"
+zh = "布林 × 肯特納擠壓"
+group = "volatility"
+type = "choice"
+rule = "squeeze"
+weight = 1.0
+params = {}
+
+[[node]]
+id = "ma_cross"
+section = "A"
+name = "MA CROSS"
+zh = "均線交叉"
+group = "ma"
+type = "score"
+rule = "ma_cross"
+weight = 1.0
+# a cross within the last `lookback` bars counts as a signal
+params = { lookback = 3 }
+
+[[node]]
+id = "vol_stop"
+section = "A"
+name = "VOLATILITY STOP"
+zh = "波動停損"
+group = "trend"
+type = "score"
+rule = "vol_stop"
+weight = 1.0
+params = {}
+
+# ---------- COL 3 — MOVING AVERAGE
+
+[[node]]
+id = "ma_20_50"
+section = "A"
+name = "MA 20 / 50"
+zh = "簡單移動平均線"
+group = "ma"
+type = "choice"
+rule = "ma_align"
+weight = 1.0
+params = { kind = "sma" }
+
+[[node]]
+id = "ema_20_50"
+section = "A"
+name = "EMA 20 / 50"
+zh = "指數移動平均線"
+group = "ma"
+type = "choice"
+rule = "ma_align"
+weight = 1.0
+params = { kind = "ema" }
+
+[[node]]
+id = "donchian"
+section = "A"
+name = "DONCHIAN CHANNELS"
+zh = "唐奇安通道"
+group = "channel"
+type = "score"
+rule = "donchian"
+weight = 1.0
+params = {}
+
+[[node]]
+id = "ma_x_ema"
+section = "A"
+name = "↳ MA × EMA 共振"
+zh = "均線共振"
+group = "ma"
+type = "score"
+rule = "agree"
+weight = 1.0
+params = { a = "ma_20_50", b = "ema_20_50", score = 1 }
+
+# ---------- COL 4 — TREND / EXIT
+
+[[node]]
+id = "zigzag"
+section = "A"
+name = "ZIG ZAG"
+zh = "折線指標"
+group = "structure"
+type = "choice"
+rule = "zigzag"
+weight = 1.0
+params = {}
+# Example of a Jev node (inactive until profile.toml [jev] enabled = true):
+# jev = { instructions = "Given the swing pivots in `zigzag`, how clearly do they form a trending structure?", criteria = ["Clear lower highs and lower lows", "Mostly descending", "No clear order", "Mostly ascending", "Clear higher highs and higher lows"] }
+
+[[node]]
+id = "supertrend"
+section = "A"
+name = "SUPERTREND"
+zh = "超級趨勢線"
+group = "trend"
+type = "score"
+rule = "supertrend"
+weight = 1.0
+params = {}
+
+[[node]]
+id = "linreg"
+section = "A"
+name = "LINEAR REGRESSION"
+zh = "線性迴歸"
+group = "trend"
+type = "score"
+rule = "linreg"
+weight = 1.0
+# flat_pct: total slope across the window below this % counts as flat
+# near_dev: |close - line| below this many residual stdevs counts as "near the line"
+params = { flat_pct = 2.0, near_dev = 0.5 }
+
+[[node]]
+id = "sar_x_linreg"
+section = "A"
+name = "↳ SAR × LINEAR REG"
+zh = "SAR 與迴歸線雙確認"
+group = "trend"
+type = "score"
+rule = "sar_x_linreg"
+weight = 1.0
+params = {}
+
+[[node]]
+id = "vwma"
+section = "A"
+name = "VWMA"
+zh = "量加權移動平均線"
+group = "volume"
+type = "score"
+rule = "vwma"
+weight = 1.0
+params = { slope_bars = 3, near_atr = 0.25 }
+
+# ============================================================ SECTION B · o/{symbol}.html
+# The o/ page replaced Aroon with CCI and ROC with Ultimate Oscillator (backtest-driven, see
+# crypto-watch README). check.html still lists Aroon / ROC, so both stay below as disabled nodes.
+
+# ---------- Group 1 · trend
+
+[[node]]
+id = "supertrend_b"
+section = "B"
+name = "SUPERTREND"
+zh = "超級趨勢線"
+group = "trend"
+type = "score"
+rule = "supertrend"
+weight = 1.0
+params = {}
+
+[[node]]
+id = "macd"
+section = "B"
+name = "MACD"
+zh = "指數平滑異同移動平均"
+group = "momentum"
+type = "score"
+rule = "macd"
+weight = 1.0
+params = { rising_bars = 2 }
+
+# Event node: MACD golden / death cross within the last `lookback` bars. Not a check.html item;
+# off until replay shows it helps: python scripts/replay.py BTC --tf 4h --compare-node macd_cross
+[[node]]
+id = "macd_cross"
+section = "E"
+name = "MACD CROSS"
+zh = "MACD 交叉"
+group = "momentum"
+type = "score"
+rule = "macd_cross"
+weight = 1.0
+enabled = false
+params = { lookback = 3 }
+
+# More event nodes (section E). Each stays off until scripts/evaluate_node.py passes it.
+
+[[node]]
+id = "rsi_divergence"
+section = "E"
+name = "RSI DIVERGENCE"
+zh = "RSI 背離"
+group = "momentum"
+type = "score"
+rule = "rsi_divergence"
+weight = 1.0
+enabled = false
+params = { lookback = 20, recent = 3 }
+
+[[node]]
+id = "uo_divergence"
+section = "E"
+name = "UO DIVERGENCE"
+zh = "UO 背離"
+group = "momentum"
+type = "score"
+rule = "uo_divergence"
+weight = 1.0
+enabled = false
+params = { lookback = 20, recent = 3 }
+
+[[node]]
+id = "obv_divergence"
+section = "E"
+name = "OBV DIVERGENCE"
+zh = "OBV 背離"
+group = "volume"
+type = "score"
+rule = "obv_divergence"
+weight = 1.0
+enabled = false
+params = { lookback = 20, recent = 3 }
+
+[[node]]
+id = "supertrend_flip"
+section = "E"
+name = "SUPERTREND FLIP"
+zh = "Supertrend 翻轉"
+group = "trend"
+type = "score"
+rule = "supertrend_flip"
+weight = 1.0
+enabled = false
+params = { lookback = 3 }
+
+[[node]]
+id = "squeeze_fire"
+section = "E"
+name = "SQUEEZE FIRE"
+zh = "Squeeze 釋放"
+group = "volatility"
+type = "score"
+rule = "squeeze_fire"
+weight = 1.0
+enabled = false
+params = { lookback = 3 }
+
+[[node]]
+id = "di_cross"
+section = "E"
+name = "DI CROSS"
+zh = "+DI / −DI 交叉"
+group = "trend"
+type = "score"
+rule = "di_cross"
+weight = 1.0
+enabled = false
+params = { lookback = 3, adx_min = 0 }
+
+[[node]]
+id = "structure_break"
+section = "E"
+name = "STRUCTURE BREAK"
+zh = "突破前波高低點"
+group = "structure"
+type = "score"
+rule = "structure_break"
+weight = 1.0
+enabled = false
+params = { lookback = 3, depth = 10 }
+
+[[node]]
+id = "dmi"
+section = "B"
+name = "DMI / ADX"
+zh = "趨向指標"
+group = "trend"
+type = "score"
+rule = "dmi"
+weight = 1.0
+params = { adx_min = 25 }
+
+[[node]]
+id = "cci"
+section = "B"
+name = "CCI"
+zh = "順勢指標"
+group = "momentum"
+type = "score"
+rule = "cci"
+weight = 1.0
+# Not in CHECK.md yet: first-draft rule, trend-following reading of ±100
+params = { level = 100, above_score = 1, below_score = -1 }
+
+[[node]]
+id = "aroon"
+section = "B"
+name = "AROON"
+zh = "阿隆指標"
+group = "trend"
+type = "score"
+rule = "aroon"
+weight = 1.0
+enabled = false
+params = { strong = 70, gap = 30 }
+
+[[node]]
+id = "supertrend_x_macd"
+section = "B"
+name = "↳ SUPERTREND × MACD"
+zh = "趨勢 × 動能"
+group = "trend"
+type = "score"
+rule = "supertrend_x_macd"
+weight = 1.0
+params = {}
+
+# ---------- Group 2 · momentum
+
+[[node]]
+id = "hma"
+section = "B"
+name = "HULL MA (HMA)"
+zh = "赫爾均線"
+group = "ma"
+type = "score"
+rule = "hma"
+weight = 1.0
+params = { slope_bars = 2 }
+
+[[node]]
+id = "rsi"
+section = "B"
+name = "RSI"
+zh = "相對強弱指標"
+group = "momentum"
+type = "score"
+rule = "rsi"
+weight = 1.0
+# overbought_score / oversold_score apply when RSI is extreme but there is no new high/low
+# to test for divergence; symbol files override them from backtest results.
+params = { overbought = 70, oversold = 30, neutral_band = [45, 55], divergence_lookback = 20, overbought_score = 0, oversold_score = 0 }
+
+[[node]]
+id = "stoch_rsi"
+section = "B"
+name = "STOCHASTIC RSI"
+zh = "隨機相對強弱"
+group = "momentum"
+type = "score"
+rule = "stoch_rsi"
+weight = 1.0
+params = { lookback = 2, low = 20, high = 80 }
+
+[[node]]
+id = "uo"
+section = "B"
+name = "ULTIMATE OSCILLATOR"
+zh = "終極震盪指標"
+group = "momentum"
+type = "score"
+rule = "uo"
+weight = 1.0
+# Not in CHECK.md yet: first-draft rule. Extremes read as mean reversion.
+params = { overbought = 70, oversold = 30, overbought_score = -1, oversold_score = 1 }
+
+[[node]]
+id = "roc"
+section = "B"
+name = "ROC"
+zh = "變動率"
+group = "momentum"
+type = "score"
+rule = "roc"
+weight = 1.0
+enabled = false
+params = { zero_band = 0.5 }
+
+# ---------- Group 3 · volatility
+
+[[node]]
+id = "bb_b"
+section = "B"
+name = "BOLLINGER BANDS"
+zh = "布林通道"
+group = "channel"
+type = "score"
+rule = "bollinger"
+weight = 1.0
+params = { width_lookback = 3 }
+
+[[node]]
+id = "atr"
+section = "B"
+name = "AVG TRUE RANGE (ATR)"
+zh = "平均真實波幅"
+group = "volatility"
+type = "score"
+rule = "atr"
+weight = 1.0
+params = { lookback = 3, min_change_pct = 3 }
+
+[[node]]
+id = "choppiness"
+section = "B"
+name = "CHOPPINESS INDEX"
+zh = "波動指數"
+group = "volatility"
+type = "score"
+rule = "choppiness"
+weight = 1.0
+params = { trend_below = 38.2, chop_above = 61.8 }
+
+[[node]]
+id = "hv"
+section = "B"
+name = "HISTORICAL VOLATILITY"
+zh = "歷史波動率"
+group = "volatility"
+type = "score"
+rule = "hv"
+weight = 1.0
+params = { window = 100, lookback = 3, low_pct = 30, high_pct = 70 }
+
+# ---------- Group 4 · volume
+
+[[node]]
+id = "vwma_b"
+section = "B"
+name = "VWMA"
+zh = "量加權移動平均線"
+group = "volume"
+type = "score"
+rule = "vwma"
+weight = 1.0
+params = { slope_bars = 3, near_atr = 0.25 }
+
+[[node]]
+id = "obv"
+section = "B"
+name = "ON BALANCE VOLUME"
+zh = "能量潮"
+group = "volume"
+type = "score"
+rule = "obv"
+weight = 1.0
+params = { lookback = 10 }
+
+[[node]]
+id = "mfi"
+section = "B"
+name = "MFI"
+zh = "資金流量指標"
+group = "volume"
+type = "score"
+rule = "mfi"
+weight = 1.0
+# overbought_score: vote when MFI > overbought without divergence; omit to fall through
+params = { overbought = 80, neutral_band = [45, 55], divergence_lookback = 20 }
+
+[[node]]
+id = "cmf"
+section = "B"
+name = "CHAIKIN MONEY FLOW"
+zh = "資金流向"
+group = "volume"
+type = "score"
+rule = "cmf"
+weight = 1.0
+params = { slope_bars = 2, zero_band = 0.05 }
+
+# ============================================================ GATES (Noul, not votes)
+# A gate's noul (0..1) scales the weight of whole groups; see profile.toml [[gate]].
+
+[[node]]
+id = "trend_established"
+section = "gate"
+name = "TREND ESTABLISHED"
+zh = "趨勢確立（ADX）"
+group = "gate"
+type = "noul"
+rule = "trend_established"
+params = { threshold = 25, soft_band = 5 }
+
+[[node]]
+id = "choppy"
+section = "gate"
+name = "CHOPPY MARKET"
+zh = "盤整（CI）"
+group = "gate"
+type = "noul"
+rule = "choppy"
+params = { threshold = 61.8, soft_band = 3 }

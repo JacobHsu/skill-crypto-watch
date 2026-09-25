@@ -1,0 +1,34 @@
+# ETH calibration, from the py-tvscreener indicator backtest
+# (distilled in crypto-watch skills/technical-analyst/references/symbol_calibration_notes.md).
+# Caveats: 1h indicator values against the next 24h, bull-biased sample (2026-02 onward).
+
+# RSI extremes work in both directions for ETH: > 70 -> down +12.4pp, < 30 -> up +6.5pp.
+[nodes.rsi]
+weight = 1.5
+params = { overbought_score = -1, oversold_score = 1 }
+
+# MFI > 80 -> down: +13.1pp.
+[nodes.mfi]
+weight = 1.5
+params = { overbought_score = -1 }
+
+# CCI(20) beyond +100 -> down: +6.7pp (mean reversion, not trend-following, for ETH).
+[nodes.cci]
+params = { above_score = -1 }
+
+# ADX-confirmed uptrend (+DI > -DI, ADX >= 25) is actively harmful for ETH: -9.5pp.
+[nodes.dmi]
+params = { bull_score = 0 }
+
+# SMA/EMA crosses and orderings: negative to ~0 edge.
+[nodes.ma_cross]
+weight = 0.5
+
+[nodes.ma_20_50]
+weight = 0.5
+
+[nodes.ema_20_50]
+weight = 0.5
+
+[nodes.ma_x_ema]
+weight = 0.5

@@ -1,0 +1,12 @@
+{
+  "name": "crypto-watch",
+  "version": "0.1.0",
+  "description": "Agent skills for crypto-watch: tv-ta runs the 28-indicator multi-timeframe TradingView checklist on computed indicator values and returns BUY / WAIT / SELL with a trade plan.",
+  "author": {
+    "name": "Jacob Hsu",
+    "url": "https://github.com/JacobHsu"
+  },
+  "homepage": "https://jacobhsu.github.io/crypto-watch/",
+  "repository": "https://github.com/JacobHsu/skills-crypto-watch",
+  "keywords": ["crypto", "technical-analysis", "tradingview", "trading"]
+}
