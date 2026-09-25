@@ -29,6 +29,8 @@ python scripts/updown.py BTC --as-of 2026-09-22T16:00 # 回放過去的題目
 python scripts/replay.py BTC --tf 4h --bars 2000      # 回放歷史 K 棒，校準信心度路由門檻
 python scripts/replay.py BTC --tf 4h --compare-node macd_cross  # 同一批 K 棒比較節點導入前後
 python scripts/replay.py BTC --updown 700              # 回放最近 700 題一日漲跌題
+python scripts/forward_log.py run                     # 每日前瞻紀錄：結算昨天的題、記錄今天的預測、印出成績表
+python scripts/forward_log.py lean BTC                # 今天原本策略和學習版各偏哪邊（不寫入任何檔案）
 python scripts/evaluate_node.py rsi_divergence        # 用固定標準評估一個節點能不能開啟
 ```
 
@@ -101,10 +103,13 @@ tv-ta/
 ├── config/                   # 內建預設值（使用者的覆寫放在 ~/.tv-ta/config/）
 │   ├── nodes.toml            # 36 個檢核節點加 2 個 gate：規則、門檻、權重
 │   ├── profile.toml          # 結論門檻、gate、停損/目標、漲跌題、指標參數、Jev 設定
+│   ├── forward_model_v1.json # 學習版的固定係數（有雜湊檢查，被改過就拒絕執行）
 │   └── symbols/              # 各幣種的覆寫設定（BTC、ETH 已依回測結果校準）
 ├── scripts/
 │   ├── run.py                # 檢核表分析，也負責載入分層設定
 │   ├── updown.py             # 預測市場一日漲跌題
+│   ├── forward_log.py        # 每日前瞻紀錄：預測、結算、成績表（給排程的 agent 每天跑一次）
+│   ├── forward_model.py      # 固定的「學習版」模型，和原本策略用同一份資料算出兩個答案
 │   ├── replay.py             # 回放歷史 K 棒：信心度路由、節點 A/B、一日漲跌題
 │   ├── evaluate_node.py      # 用固定通過標準評估節點（事件節點上線前必跑）
 │   ├── fetch_ohlcv.py        # 抓 Binance K 線（不需要 API key）
@@ -116,8 +121,17 @@ tv-ta/
 ├── references/
 │   ├── checklist.md          # 36 項對照表：CHECK.md 的描述 → 數值定義
 │   └── node_design.md        # 分層設定、調參數、用紀錄校準權重、改成問 Jev
-└── tests/test_nodes.py       # 合成行情測試
+├── tests/test_nodes.py       # 合成行情測試
+└── tests/test_forward.py     # 前瞻紀錄的離線測試（模型檔、結算、成績表）
 ```
+
+## 前瞻測試（實驗性）
+
+回測顯示目前的策略在一日漲跌題上略低於 50%（七個幣種各約 47–50%，五年資料）。另一組固定權重的「學習版」（`config/forward_model_v1.json`，部分節點權重為負）在回測中略高，但差距在誤差範圍內。要確認它不是事後挑出來的，必須看還沒發生的日子：`scripts/forward_log.py run` 每天記錄原本策略、學習版和永遠猜 Up 三個答案，結算後計分。詳細規則和給 agent 的執行步驟見 `SKILL.md`。
+
+- 紀錄存在 `~/.tv-ta/forward/forward.csv`；題目開始 3 小時後才記的算「補記」，不計分。
+- 累積 180 天前，成績表的數字只是進度，不是結論。
+- 這個模型不影響檢核表、BUY/WAIT/SELL 和交易計畫，只在一日漲跌題多顯示一行實驗性的偏向。
 
 ## 驗證狀態
 

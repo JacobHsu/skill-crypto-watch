@@ -1,0 +1,120 @@
+{
+ "id": "learned_v1",
+ "status": "experimental: frozen for the forward test, not validated on future data",
+ "description": "Ridge-logistic combination of the gated node scores. Score = sum(coef[i] * x[i]); positive -> Up, negative -> Down, zero -> no call. Coefficients may be negative: that is the point (fast trend nodes vote against the move). Scale is arbitrary; only the sign matters.",
+ "features": "x[i] = mean over the [updown] timeframes (those where node i has a score) of node score * gate multiplier of node i's group; evaluated with every node enabled, on candles closed before the question starts.",
+ "fit": {
+  "method": "sklearn LogisticRegression, C=0.05, no intercept",
+  "trained_on": [
+   "BTC",
+   "ETH"
+  ],
+  "questions": "BTC 2021-04-04..2026-09-24 and ETH 2021-05-25..2026-07-28 (daily Up/Down, noon ET)",
+  "fitted_on": "2026-09-25"
+ },
+ "backtest": {
+  "walk_forward_oos_hit": {
+   "BTC": 0.537,
+   "ETH": 0.524
+  },
+  "untrained_coins_hit": {
+   "SOL": 0.527,
+   "BNB": 0.537,
+   "XRP": 0.527,
+   "DOGE": 0.51,
+   "ADA": 0.53
+  },
+  "note": "always-Up scored 52.4% (BTC) and 51.4% (ETH) out of sample; the edge over it is within noise"
+ },
+ "symbols": {
+  "trained": [
+   "BTC",
+   "ETH"
+  ],
+  "untrained": [
+   "SOL",
+   "BNB",
+   "XRP",
+   "DOGE",
+   "ADA"
+  ]
+ },
+ "review_rule": "Review after 180 logged days. Promote only if the learned model beats both the shipped strategy and always-Up on the pooled set and on at least 5 of the 7 symbols. Agents report numbers and never change or retrain the model.",
+ "features_order": [
+  "alligator",
+  "alligator_x_fractal",
+  "atr",
+  "bb",
+  "bb_b",
+  "cci",
+  "choppiness",
+  "cmf",
+  "dmi",
+  "donchian",
+  "ema_20_50",
+  "fractals",
+  "hma",
+  "hv",
+  "kc",
+  "linreg",
+  "ma_20_50",
+  "ma_cross",
+  "ma_x_ema",
+  "macd",
+  "mfi",
+  "mtp",
+  "obv",
+  "psar",
+  "rsi",
+  "sar_x_linreg",
+  "squeeze",
+  "stoch_rsi",
+  "supertrend",
+  "supertrend_b",
+  "supertrend_x_macd",
+  "uo",
+  "vol_stop",
+  "vwma",
+  "vwma_b",
+  "zigzag"
+ ],
+ "coef": [
+  -0.2318,
+  0.8802,
+  2.1745,
+  0.1553,
+  0.1553,
+  0.4142,
+  2.0915,
+  -0.3877,
+  -0.5856,
+  0.6194,
+  3.1655,
+  -0.2605,
+  -3.6975,
+  -0.8937,
+  2.2431,
+  0.5468,
+  -0.7499,
+  0.1713,
+  0.0352,
+  -0.7316,
+  0.6932,
+  0.2052,
+  -1.3794,
+  -2.2912,
+  -0.0464,
+  -3.0546,
+  1.9134,
+  0.7017,
+  -0.346,
+  -0.346,
+  0.6554,
+  -0.2188,
+  1.5061,
+  -0.8244,
+  -0.8244,
+  -0.8033
+ ],
+ "sha256": "07c17f8152ad2515e857f57fea8bc18538476c79d85c7da197dbec3995a8ad96"
+}
