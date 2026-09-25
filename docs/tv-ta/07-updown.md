@@ -117,7 +117,7 @@ python scripts/updown.py BTC --as-of 2026-09-22T16:00
 
 **回放結果（2026-09-24）**：用 `replay.py --updown 700` 回放 BTC、ETH 各約 700 題，開題當下綜合分數的偏向命中率只有 49%（BTC）和 46%（ETH），低於擲硬幣。見 [09 的最後一節](09-event-nodes.md#同時發現目前的綜合分數對漲跌題沒有預測力)。
 
-**依作答時點回測（2026-09-25，BTC 699 題）**：`python scripts/backtest_updown.py BTC --days 700`。
+**依作答時點回測（2026-09-25，BTC 699 題）**：`python backtest/backtest_updown.py BTC --days 700`。
 
 | 剩餘時間 | 只看價格距離 | 只看技術面 | 價格 + 技術面 |
 |---|---|---|---|
@@ -130,11 +130,13 @@ python scripts/updown.py BTC --as-of 2026-09-22T16:00
 
 ## 歷史題目資料集
 
+> 建資料集、熱圖和回測腳本是維護者工具，放在 repo 的 `backtest/` 資料夾，不在會被下載的 `skills/tv-ta/` 裡；請在 repo 根目錄執行。
+
 回測要用的「每天的目標價、結算價、結果」是固定已知的，所以先存成資料，不要每次回測都重抓。
 
 ```
-python scripts/updown_dataset.py BTC ETH --days 730   # 增量更新：只補缺的日子
-python scripts/updown_heatmap.py                       # 產生 repo 根目錄的 index.html
+python backtest/updown_dataset.py BTC ETH --days 730   # 增量更新：只補缺的日子
+python backtest/updown_heatmap.py                       # 產生 repo 根目錄的 index.html
 ```
 
 - **統計用**：`data/updown/btc.csv`、`eth.csv`，每題一列。欄位：`symbol, question_date, start_utc, settle_utc, start_tw, settle_tw, target, settle_price, result, return_pct`。價格是 Binance 1 分鐘 K 線收盤價，和題目規定的一致。

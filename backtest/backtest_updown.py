@@ -1,7 +1,7 @@
 """Backtest the daily "Up or Down" answer at several points inside each question window.
 
-  python scripts/backtest_updown.py BTC --days 700
-  python scripts/backtest_updown.py BTC --days 300 --hours-left 24,16,8,2 --json
+  python backtest/backtest_updown.py BTC --days 700
+  python backtest/backtest_updown.py BTC --days 300 --hours-left 24,16,8,2 --json
 
 replay.py --updown only judges at the question's start, where the volatility base is 50% and the
 answer is the technical lean alone. In real use the question is often asked mid-window, when the
@@ -25,7 +25,7 @@ import os
 import sys
 from dataclasses import dataclass
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import skill_path  # noqa: F401  (puts skills/tv-ta/scripts on sys.path)
 
 import fetch_ohlcv  # noqa: E402
 import replay  # noqa: E402
@@ -110,14 +110,14 @@ def build_samples(data, profile, nodes, symbol, days, hours_left) -> list[Sample
                 continue
             left = (settle - at) / HOUR_MS
             base = base_probability(price, target, hourly_sigma(h1["close"][end1 - SIGMA_BARS - 1:end1]), left)
-            comps = _composites(tfs, main, htf, nodes, profile, symbol, at, limit)
+            comps = composites(tfs, main, htf, nodes, profile, symbol, at, limit)
             avg = sum(comps) / len(comps) if comps else None
             p_up = combine(base, avg, cfg["scale"], cfg["max_tilt"]) if avg is not None else None
             out.append(Sample(str(day + dt.timedelta(days=1)), h, base, avg, p_up, up))
     return out
 
 
-def _composites(tfs, main, htf, nodes, profile, symbol, at, limit) -> list[float]:
+def composites(tfs, main, htf, nodes, profile, symbol, at, limit) -> list[float]:
     comps = []
     for tf in tfs:
         b, h = main[tf], htf[tf]

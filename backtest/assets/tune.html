@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>tv-ta 節點流程圖與調參</title>
+<style>
+:root{--bg:#10141f;--card:#181d2a;--line:#262d3d;--ink:#e6e8ee;--muted:#8a93a8;--edit:#0c1018;--edit-line:#3d4b6b;--accent:#5b8def;
+--up:#4ade80;--down:#ff6767;--warn:#f5b942}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 system-ui,-apple-system,"Segoe UI","Noto Sans TC",sans-serif}
+main{max-width:1180px;margin:0 auto;padding:28px 20px 80px}
+h1{font-size:24px;margin:0 0 4px}
+.sub{color:var(--muted);margin:0 0 16px;font-size:13px}
+.legend{display:flex;gap:18px;flex-wrap:wrap;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:13px}
+.tag{display:inline-block;border-radius:6px;padding:1px 8px;font-size:12px;white-space:nowrap}
+.legend>span{display:flex;align-items:baseline;gap:8px}
+.tag.fixed{border:1px dashed #4a5268;color:#aab2c5;background:#1c2130}
+.tag.tune{border:1px solid var(--warn);color:#ffe7a8;background:#3a2f12}
+.tag.cfg{border:1px dashed var(--accent);color:#bcd3ff;background:#152238}
+.overview{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:16px;overflow-x:auto}
+.overview h2{margin:0 0 8px}
+#overview svg{max-width:100%;height:auto;display:block;margin:0 auto}
+.bar{position:sticky;top:0;z-index:5;display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:rgba(16,20,31,.94);backdrop-filter:blur(6px);padding:10px 0;margin-bottom:12px;border-bottom:1px solid var(--line)}
+select,input,button{font:inherit;color:var(--ink)}
+select,input[type=number],input[type=text]{background:var(--edit);border:1px solid var(--edit-line);border-radius:6px;padding:5px 8px}
+button{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:7px 14px;cursor:pointer}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+button:disabled{opacity:.5;cursor:wait}
+#status{color:var(--muted);font-size:13px}#changed{color:var(--warn);font-size:13px}
+.results{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-bottom:14px}
+.res{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.res h3{margin:0 0 6px;font-size:13px;color:var(--muted);font-weight:600}
+.res .big{font-size:32px;font-weight:700;font-variant-numeric:tabular-nums}
+.res .big small{font-size:14px;color:var(--muted);font-weight:400;margin-left:6px}
+.res p{margin:4px 0 0;color:var(--muted);font-size:12px}
+.delta.up{color:var(--up)}.delta.down{color:var(--down)}
+.note{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--warn);border-radius:8px;padding:8px 12px;margin-bottom:14px;font-size:13px;color:var(--muted)}
+pre#toml{display:none;background:var(--edit);border:1px solid var(--edit-line);border-radius:8px;padding:12px;overflow:auto;font-size:12px;margin-bottom:14px}
+h2{font-size:17px;margin:28px 0 10px}h2 span{color:var(--muted);font-size:13px;font-weight:400;margin-left:8px}
+.ncard{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:12px}
+.ncard.changed{border-color:var(--warn)}
+.ncard.off .flow{opacity:.45}
+.top{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;align-items:flex-start}
+.name b{font-size:15px}.name small{color:var(--muted);margin-left:8px}
+.fixed{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.fixed span{border:1px dashed #4a5268;color:#aab2c5;background:#1c2130;border-radius:6px;padding:0 8px;font-size:12px}
+.head-ctl{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
+.f{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--muted)}
+.f input[type=number]{width:88px}.f input[type=text]{width:150px}
+.f.changed input{border-color:var(--warn);box-shadow:0 0 0 1px var(--warn)}
+.f.bad input{border-color:var(--down);box-shadow:0 0 0 1px var(--down)}
+.f em{font-style:normal;font-size:11px;color:var(--warn);min-height:14px}
+.f.chk{flex-direction:row;align-items:center;gap:6px;padding-bottom:6px}
+.look{color:var(--muted);font-size:13px;margin:10px 0 0}
+.flow{margin-top:10px;overflow-x:auto;background:#141926;border:1px solid var(--line);border-radius:8px;padding:8px;min-height:40px}
+.flow svg{max-width:none;height:auto;display:block;margin:0 auto}
+.flow svg foreignObject{overflow:visible}
+.flow .none{color:var(--muted);font-size:12px;padding:6px}
+.panel{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-top:10px}
+.panel-title{width:100%;font-size:12px;color:var(--muted)}
+.chipw{display:inline-flex;align-items:baseline;gap:1px}
+input.chip{background:#3a2f12;border:1px solid var(--warn);color:#ffe7a8;border-radius:4px;padding:0 3px;font:inherit;font-weight:700;text-align:center;line-height:1.3}
+input.chip.changed{background:#5a3f00;box-shadow:0 0 0 2px var(--warn)}
+input.chip.bad{border-color:var(--down);background:#4a1a1a}
+.index{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:16px}
+.index h2{margin:0 0 4px}.index .hint{color:var(--muted);font-size:12px;margin:0 0 10px}
+.index h4{margin:12px 0 4px;font-size:13px;color:var(--muted)}
+.index table{width:100%;border-collapse:collapse;font-size:12px}
+.index td{padding:3px 8px 3px 0;border-top:1px solid var(--line);vertical-align:top}
+.index td.n a{color:var(--ink);text-decoration:none;font-weight:600}.index td.n a:hover{color:var(--accent)}
+.index td.n small{color:var(--muted);margin-left:6px;font-weight:400}
+.index .v{display:inline-block;border:1px solid var(--warn);color:#ffe7a8;background:#3a2f12;border-radius:5px;padding:0 6px;margin:1px 4px 1px 0;white-space:nowrap}
+.index .v.base{border-color:var(--edit-line);color:var(--muted);background:transparent}
+.index .v.changed{background:#5a3f00;box-shadow:0 0 0 2px var(--warn);color:#fff}
+.index .v.none{border-style:dashed;border-color:#4a5268;color:var(--muted);background:transparent}
+.index .off{opacity:.55}
+.err{background:#2a1c1c;border:1px solid var(--down);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:13px}
+</style>
+</head>
+<body>
+<main>
+<h1>節點流程圖與調參</h1>
+<p class="sub">每個節點的決策流程圖裡，<b>黃色的數字可以直接改</b>；改完可以跑回測，和內建設定比較。</p>
+<div class="legend">
+  <span><span class="tag fixed">固定</span>流程結構、規則邏輯、指標公式（程式碼）</span>
+  <span><span class="tag tune">可調</span>本頁可以改：weight、啟用、門檻數字、gate floor</span>
+  <span><span class="tag cfg">設定檔可調</span>可以改，但本頁沒有提供（profile.toml）</span>
+</div>
+<div class="overview"><h2>整體怎麼運作</h2><div id="overview"></div></div>
+<div class="bar">
+  <label>幣種 <select id="symbol"></select></label>
+  <label>最近 <select id="days"><option>100</option><option selected>200</option><option>365</option><option>730</option></select> 題</label>
+  <button class="primary" id="run">跑回測</button>
+  <button id="reset">還原全部</button>
+  <button id="copy">複製 TOML 補丁</button>
+  <span id="changed"></span><span id="status"></span>
+</div>
+<div id="err" class="err" style="display:none"></div>
+<div id="results" class="results"></div>
+<div class="index" id="index" style="display:none"></div>
+<div id="note" class="note" style="display:none"></div>
+<pre id="toml"></pre>
+<div id="nodes"></div>
+</main>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const clone = (x) => JSON.parse(JSON.stringify(x));
+const MERMAID_URL = "https://cdn.jsdelivr.net/npm/mermaid@10.9.3/dist/mermaid.min.js";
+const OVERVIEW = `flowchart LR
+  K["Binance K 線"]:::fixed --> I["指標計算<br/>公式對齊 TradingView<br/>長度在 profile.toml"]:::cfg
+  I --> R["每個節點的規則<br/>邏輯固定<br/>門檻數字可調"]:::tune
+  R --> SC["節點分數<br/>-2 到 +2"]:::fixed
+  SC --> WT["× weight<br/>× 啟用"]:::tune
+  WT --> GT["× gate 係數<br/>floor 可調"]:::tune
+  GT --> CP["加權平均<br/>= 綜合分數"]:::fixed
+  CP --> TH["買賣門檻<br/>buy_above<br/>sell_below"]:::cfg
+  classDef fixed fill:#1c2130,stroke:#4a5268,stroke-dasharray:4 3,color:#aab2c5
+  classDef tune fill:#3a2f12,stroke:#f5b942,color:#ffe7a8
+  classDef cfg fill:#152238,stroke:#5b8def,stroke-dasharray:3 3,color:#bcd3ff`;
+
+let base = null, cur = null, flows = {}, mermaidOk = false;
+const syncers = new Map();      // node id -> {head: [], flow: [], panel: []}
+let renderToken = 0;
+
+function el(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) { if (k === "class") e.className = v; else e[k] = v; }
+  for (const k of kids) e.append(k);
+  return e;
+}
+const regs = (id) => { if (!syncers.has(id)) syncers.set(id, { head: [], flow: [], panel: [] }); return syncers.get(id); };
+
+// ---- state access -------------------------------------------------------------------------
+// A leaf is a number inside a node's params: {key} or {key, idx} for one element of a list.
+const getLeaf = (o, l) => (l.idx == null ? o.params[l.key] : o.params[l.key][l.idx]);
+function setLeaf(id, l, v) { const p = cur.nodes[id].params; if (l.idx == null) p[l.key] = v; else p[l.key][l.idx] = v; }
+const leafName = (l) => (l.idx == null ? l.key : l.key + "[" + l.idx + "]");
+function numericLeaves(params) {
+  const out = [];
+  for (const [key, v] of Object.entries(params)) {
+    if (/scores?$/.test(key)) continue;                       // outcome scores are not thresholds in the diagrams
+    if (typeof v === "number") out.push({ key });
+    else if (Array.isArray(v) && v.every((x) => typeof x === "number")) v.forEach((_, idx) => out.push({ key, idx }));
+  }
+  return out;
+}
+
+// ---- a synced input ------------------------------------------------------------------------
+// get/set act on `cur`; def is the shipped value; parse/fmt convert between the box and the value.
+function makeInput(input, o) {
+  const r = { input, sync() {
+    const changed = !same(o.get(), o.def);
+    if (document.activeElement !== input) { if (input.type === "checkbox") input.checked = o.get(); else input.value = o.fmt(o.get()); }
+    (o.wrap || input).classList.toggle("changed", changed);
+    if (o.hint) o.hint.textContent = changed ? "預設 " + o.showDef : "";
+    r.changed = changed;
+  }, changed: false, bad: false };
+  const onEdit = () => {
+    try { o.set(input.type === "checkbox" ? input.checked : o.parse(input.value)); r.bad = false; }
+    catch (e) { r.bad = true; }
+    (o.wrap || input).classList.toggle("bad", r.bad);
+    refresh();
+  };
+  input.addEventListener("input", onEdit);
+  input.addEventListener("change", onEdit);
+  return r;
+}
+const numParse = (s) => { const x = Number(s); if (s.trim() === "" || !isFinite(x)) throw new Error("number"); return x; };
+
+function field(label, def, get, set, list) {
+  let input, fmt = (v) => String(v), parse = (s) => s;
+  if (typeof def === "boolean") input = el("input", { type: "checkbox" });
+  else if (typeof def === "number") { input = el("input", { type: "number", step: "any" }); parse = numParse; }
+  else if (typeof def === "string") input = el("input", { type: "text" });
+  else { input = el("input", { type: "text" }); fmt = (v) => JSON.stringify(v); parse = (s) => { const v = JSON.parse(s); if (!same(v.map ? v.map((x) => typeof x) : typeof v, def.map ? def.map((x) => typeof x) : typeof def)) throw new Error("kind"); return v; }; }
+  const hint = el("em", {});
+  const wrap = el("label", { class: "f" + (typeof def === "boolean" ? " chk" : "") }, label, input, hint);
+  list.push(makeInput(input, { get, set, def, fmt, parse, wrap, hint, showDef: JSON.stringify(def) }));
+  return wrap;
+}
+
+// ---- a number typed into a flow diagram ------------------------------------------------------
+const chipForms = (v) => {
+  const forms = [{ text: String(v), kind: "raw" }];
+  if (v > 0 && v < 1) {
+    forms.push({ text: +(v * 100).toFixed(4) + "%", kind: "pct" });
+    forms.push({ text: +((1 - v) * 100).toFixed(4) + "%", kind: "pctc" });
+  }
+  return forms;
+};
+const chipShow = { raw: (v) => String(v), pct: (v) => String(+(v * 100).toFixed(4)), pctc: (v) => String(+((1 - v) * 100).toFixed(4)) };
+const chipRead = { raw: (x) => x, pct: (x) => x / 100, pctc: (x) => 1 - x / 100 };
+const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// Replace every unambiguous threshold in the diagram's labels by an input. Returns the bound leaves.
+function bindFlow(box, id, node) {
+  const leaves = numericLeaves(node.params);
+  const table = new Map();
+  for (const l of leaves) for (const f of chipForms(getLeaf(node, l))) {
+    if (!table.has(f.text)) table.set(f.text, []);
+    table.get(f.text).push({ leaf: l, kind: f.kind });
+  }
+  const usable = [...table].filter(([, c]) => new Set(c.map((x) => leafName(x.leaf))).size === 1);
+  if (!usable.length) return new Set();
+  const re = new RegExp("(?<![\\w.+\\-])(?:" + usable.map(([t]) => esc(t) + (t.endsWith("%") ? "(?![\\w.])" : "(?![\\w.%])")).join("|") + ")", "g");
+  const byText = new Map(usable.map(([t, c]) => [t, c[0]]));
+  const bound = new Set();
+  const walker = document.createTreeWalker(box.querySelector("svg"), NodeFilter.SHOW_TEXT);
+  const texts = []; for (let n = walker.nextNode(); n; n = walker.nextNode()) texts.push(n);
+  for (const t of texts) {
+    if (!t.parentElement.closest("foreignObject")) continue;
+    const s = t.nodeValue, parts = []; let last = 0, m;
+    re.lastIndex = 0;
+    while ((m = re.exec(s))) {
+      parts.push(document.createTextNode(s.slice(last, m.index)));
+      parts.push(chip(id, byText.get(m[0]), m[0], node, base.nodes[id]));
+      bound.add(leafName(byText.get(m[0]).leaf));
+      last = m.index + m[0].length;
+    }
+    if (!parts.length) continue;
+    parts.push(document.createTextNode(s.slice(last)));
+    t.replaceWith(...parts);
+  }
+  return bound;
+}
+
+function chip(id, c, text, node, defNode) {
+  const { leaf, kind } = c, def = getLeaf(defNode, leaf);
+  const input = el("input", { type: "text", class: "chip", title: leafName(leaf) + "（預設 " + def + "）" });
+  input.style.width = (chipShow[kind](def).length + 1.6) + "ch";
+  const w = el("span", { class: "chipw" }, input);
+  if (kind !== "raw") w.append("%");
+  const cn = { nodes: cur.nodes };
+  regs(id).flow.push(makeInput(input, {
+    get: () => getLeaf(cur.nodes[id], leaf), def, fmt: (v) => chipShow[kind](v),
+    parse: (s) => chipRead[kind](numParse(s)), set: (v) => setLeaf(id, leaf, v), showDef: String(def),
+  }));
+  return w;
+}
+
+// ---- cards ---------------------------------------------------------------------------------
+function panelFor(id, node, bound) {
+  const box = el("div", { class: "panel" });
+  const r = regs(id);
+  r.panel = [];
+  const entries = Object.entries(node.params).filter(([key, v]) => {
+    const ls = numericLeaves({ [key]: v });
+    return !(ls.length && ls.every((l) => bound.has(leafName(l))));
+  });
+  if (bound.size) box.append(el("div", { class: "panel-title", textContent: "已放在流程圖上、直接點黃色數字改：" + [...bound].join("、")
+    + (node.params && Object.values(node.params).some((v) => typeof v === "number" && v > 0 && v < 1) ? "（比例會以 % 顯示，例如 0.6 = 60%，圖上另一端的 40% 是 100 − 60，兩個框連動）" : "") }));
+  if (entries.length) box.append(el("div", { class: "panel-title", textContent: bound.size ? "流程圖上沒有直接出現的參數" : "可調參數（這個節點沒有流程圖，或流程圖上找不到這些數字）" }));
+  else if (!Object.keys(node.params).length) box.append(el("div", { class: "panel-title", textContent: "這個節點沒有門檻數字，只能調上面的「啟用」和「權重」" }));
+  for (const [key, v] of entries) {
+    box.append(field(key, v, () => cur.nodes[id].params[key], (x) => { cur.nodes[id].params[key] = x; }, r.panel));
+  }
+  return box;
+}
+
+function nodeCard(n, gate) {
+  const card = el("div", { class: "ncard" }); card.dataset.id = n.id;
+  const r = regs(n.id);
+  const fixed = el("div", { class: "fixed" }, el("span", { textContent: "🔒 " + n.id }), el("span", { textContent: "群組 " + n.group }),
+    el("span", { textContent: "型別 " + n.type }), el("span", { textContent: "規則 " + n.rule + "()" }));
+  if (gate) fixed.append(el("span", { textContent: "影響 " + gate.groups.join(" / ") + (gate.invert ? "（反向）" : "") }));
+  const head = el("div", { class: "head-ctl" });
+  if (n.section !== "gate") {
+    head.append(field("啟用", n.enabled, () => cur.nodes[n.id].enabled, (x) => { cur.nodes[n.id].enabled = x; }, r.head));
+    head.append(field("權重 weight", n.weight, () => cur.nodes[n.id].weight, (x) => { cur.nodes[n.id].weight = x; }, r.head));
+  }
+  if (gate) head.append(field("floor（越低影響越大）", gate.floor, () => cur.gates[n.id], (x) => { cur.gates[n.id] = x; }, r.head));
+  card.append(el("div", { class: "top" }, el("div", { class: "name" }, el("b", { textContent: n.name }), el("small", { textContent: n.zh }), fixed), head));
+  const f = flows[n.id];
+  const text = (f && f.look) || n.doc;
+  if (text) card.append(el("p", { class: "look", textContent: text }));
+  card.append(el("div", { class: "flow" }), el("div", { class: "panel-slot" }));
+  card.querySelector(".panel-slot").replaceWith(panelFor(n.id, n, new Set()));
+  return card;
+}
+
+async function renderFlow(card, n, token) {
+  const box = card.querySelector(".flow");
+  const f = flows[n.id];
+  if (!f || !mermaidOk) { box.remove(); return; }
+  try {
+    const { svg } = await window.mermaid.render("m-" + n.id + "-" + token, f.mermaid);
+    if (token !== renderToken) return;
+    box.innerHTML = svg;
+    const bound = bindFlow(box, n.id, n);
+    card.querySelector(".panel").replaceWith(panelFor(n.id, n, bound));
+  } catch (e) { box.replaceChildren(el("div", { class: "none", textContent: "流程圖無法顯示：" + e.message })); }
+  refresh();
+}
+
+const indexTags = [];   // {span, label, get, def}: tags in the index that follow the current values
+function tag(cls, label, get, def) {
+  const span = el("span", { class: cls });
+  indexTags.push({ span, cls, label, get, def });
+  return span;
+}
+const fmtVal = (v) => (Array.isArray(v) ? "[" + v.join(", ") + "]" : String(v));
+function indexTable(c) {
+  const box = $("index"); box.replaceChildren(); indexTags.length = 0;
+  box.style.display = "block";
+  box.append(el("h2", { textContent: "全部節點與可調變數（" + c.nodes.length + " 個節點）" }),
+    el("p", { class: "hint", textContent: "黃色標籤是這個節點可以調的變數，括號內是目前的值（改過會顯示預設值）；點節點名稱跳到它的卡片。每個節點都能調「啟用」和「權重」，其餘看下表。" }));
+  const gates = Object.fromEntries(c.gates.map((g) => [g.node, g]));
+  for (const sec of ["A", "B", "E", "gate"]) {
+    const list = c.nodes.filter((n) => n.section === sec);
+    if (!list.length) continue;
+    const tb = el("table", {});
+    for (const n of list) {
+      const vars = el("td", {});
+      if (n.section !== "gate") vars.append(tag("v base", "啟用", () => cur.nodes[n.id].enabled, n.enabled), tag("v base", "weight", () => cur.nodes[n.id].weight, n.weight));
+      if (gates[n.id]) vars.append(tag("v", "floor", () => cur.gates[n.id], gates[n.id].floor));
+      const keys = Object.entries(n.params);
+      for (const [k, v] of keys) vars.append(tag("v", k, () => cur.nodes[n.id].params[k], v));
+      if (!keys.length && !gates[n.id]) vars.append(el("span", { class: "v none", textContent: "沒有門檻數字" }));
+      const a = el("a", { href: "#", textContent: n.name }); a.addEventListener("click", (e) => {
+        e.preventDefault(); const t = document.querySelector('.ncard[data-id="' + n.id + '"]'); if (t) t.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+      tb.append(el("tr", { class: n.enabled === false ? "off" : "" }, el("td", { class: "n" }, a, el("small", { textContent: n.zh + (n.enabled === false ? "（預設停用）" : "") })), vars));
+    }
+    box.append(el("h4", { textContent: c.sections[sec] + "　" + list.length + " 項" }), tb);
+  }
+}
+
+function build(c) {
+  base = { nodes: Object.fromEntries(c.nodes.map((n) => [n.id, { weight: n.weight, enabled: n.enabled, params: clone(n.params) }])),
+           gates: Object.fromEntries(c.gates.map((g) => [g.node, g.floor])) };
+  cur = clone(base);
+  syncers.clear();
+  const root = $("nodes"); root.replaceChildren();
+  const gates = Object.fromEntries(c.gates.map((g) => [g.node, g]));
+  const cards = [];
+  indexTable(c);
+  for (const sec of ["A", "B", "E", "gate"]) {
+    const list = c.nodes.filter((n) => n.section === sec);
+    if (!list.length) continue;
+    root.append(el("h2", { textContent: c.sections[sec] }, el("span", { textContent: list.length + " 項" })));
+    for (const n of list) { const card = nodeCard(n, gates[n.id]); root.append(card); cards.push([card, n]); }
+  }
+  refresh();
+  const token = ++renderToken;
+  (async () => {
+    let i = 0;
+    for (const [card, n] of cards) { await renderFlow(card, n, token); if (token !== renderToken) return; $("status").textContent = "流程圖 " + (++i) + "/" + cards.length; }
+    $("status").textContent = "資料集 " + c.dataset.first + " ～ " + c.dataset.last + "（" + c.dataset.n + " 題）";
+  })();
+}
+
+// changed values, counted once each however many inputs show them
+function diffNodes() {
+  const touched = new Set(); let n = 0;
+  for (const [id, b] of Object.entries(base.nodes)) {
+    const c = cur.nodes[id];
+    if (c.weight !== b.weight) { n++; touched.add(id); }
+    if (c.enabled !== b.enabled) { n++; touched.add(id); }
+    for (const [k, v] of Object.entries(b.params)) {
+      const cv = c.params[k];
+      const k2 = Array.isArray(v) ? v.filter((x, i) => x !== cv[i]).length : (v !== cv ? 1 : 0);
+      if (k2) { n += k2; touched.add(id); }
+    }
+  }
+  for (const [id, f] of Object.entries(base.gates)) if (cur.gates[id] !== f) { n++; touched.add(id); }
+  return { n, touched };
+}
+
+function refresh() {
+  let bad = false;
+  for (const r of syncers.values()) for (const list of [r.head, r.flow, r.panel]) for (const s of list) { s.sync(); bad = bad || s.bad; }
+  const { n, touched } = diffNodes();
+  document.querySelectorAll(".ncard").forEach((d) => {
+    d.classList.toggle("changed", touched.has(d.dataset.id));
+    d.classList.toggle("off", cur.nodes[d.dataset.id] && !cur.nodes[d.dataset.id].enabled);
+  });
+  for (const t of indexTags) {
+    const v = t.get(), ch = !same(v, t.def);
+    t.span.textContent = t.label + "（" + fmtVal(v) + (ch ? "，預設 " + fmtVal(t.def) : "") + "）";
+    t.span.className = t.cls + (ch ? " changed" : "");
+  }
+  $("changed").textContent = n ? "已改 " + n + " 項" : "";
+  $("run").disabled = bad;
+}
+
+function collect() {
+  const patch = { nodes: {}, gates: {} };
+  for (const [id, b] of Object.entries(base.nodes)) {
+    const c = cur.nodes[id], p = {};
+    if (c.weight !== b.weight) p.weight = c.weight;
+    if (c.enabled !== b.enabled) p.enabled = c.enabled;
+    const params = {};
+    for (const k of Object.keys(b.params)) if (!same(c.params[k], b.params[k])) params[k] = c.params[k];
+    if (Object.keys(params).length) p.params = params;
+    if (Object.keys(p).length) patch.nodes[id] = p;
+  }
+  for (const [id, f] of Object.entries(base.gates)) if (cur.gates[id] !== f) patch.gates[id] = { floor: cur.gates[id] };
+  return patch;
+}
+
+// ---- server calls ----------------------------------------------------------------------------
+async function api(path, body) {
+  const r = await fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {});
+  const data = (r.headers.get("content-type") || "").includes("json") ? await r.json() : await r.text();
+  if (!r.ok) throw new Error(data.error || r.statusText);
+  return data;
+}
+const pct = (x) => (x == null ? "—" : (x * 100).toFixed(1) + "%");
+
+function resCard(title, s, ref) {
+  const a = s.all, card = el("div", { class: "res" }, el("h3", { textContent: title }));
+  card.append(el("div", { class: "big" }, pct(a.hit), el("small", { textContent: a.ci == null ? "" : "±" + (a.ci * 100).toFixed(1) })));
+  if (ref) { const d = (a.hit - ref.all.hit) * 100; card.append(el("p", { class: "delta " + (d > 0 ? "up" : d < 0 ? "down" : ""), textContent: "和內建設定相差 " + (d > 0 ? "+" : "") + d.toFixed(1) + " 個百分點" })); }
+  card.append(el("p", { textContent: a.n + " 題有偏向　前半 " + pct(s.first_half.hit) + "　後半 " + pct(s.second_half.hit) }));
+  card.append(el("p", { textContent: "偏 Up 占 " + pct(s.lean_up) + "　實際 Up " + pct(s.actual_up) + "（永遠猜 Up 的命中率）" }));
+  return card;
+}
+
+function showResult(r) {
+  const box = $("results"), note = $("note"); box.replaceChildren();
+  box.append(resCard("內建設定（" + r.from + " ～ " + r.to + "，" + r.days + " 題）", r.baseline));
+  note.style.display = "block";
+  if (!r.tuned) { note.textContent = "還沒有修改任何值，這是內建設定的結果。改流程圖上的黃色數字再按「跑回測」。"; return; }
+  box.append(resCard("調整後", r.tuned, r.baseline));
+  const d = Math.abs(r.tuned.all.hit - r.baseline.all.hit), ci = Math.max(r.tuned.all.ci, r.baseline.all.ci);
+  note.textContent = "方向翻轉 " + r.flips + " 題（改動讓多少題的偏向和內建設定不同）。" + (r.flips === 0 ? "一題都沒翻，命中率不會變，可以把值改大一點再試。" : "") + " "
+    + (d < ci ? "差距 " + (d * 100).toFixed(1) + " 個百分點，小於誤差範圍 ±" + (ci * 100).toFixed(1) + "，這個改動不能算有改善或變差。"
+      : "差距超過誤差範圍，但請換一段題目（改上面的題數）再驗證，避免只是配合這批資料調出來的。");
+}
+
+async function run() {
+  const status = $("status"), t0 = Date.now();
+  $("run").disabled = true;
+  const timer = setInterval(() => { status.textContent = "計算中… " + Math.round((Date.now() - t0) / 1000) + " 秒（第一次要下載行情）"; }, 500);
+  try { showResult(await api("/api/backtest", { symbol: $("symbol").value, days: Number($("days").value), patch: collect() })); status.textContent = "完成"; }
+  catch (e) { status.textContent = "錯誤：" + e.message; }
+  finally { clearInterval(timer); refresh(); }
+}
+
+async function copyToml() {
+  try {
+    const text = await api("/api/toml", { symbol: $("symbol").value, patch: collect() });
+    const pre = $("toml"); pre.style.display = "block"; pre.textContent = text;
+    try { await navigator.clipboard.writeText(text); $("status").textContent = "已複製"; } catch (e) { $("status").textContent = "請手動複製下方文字"; }
+  } catch (e) { $("status").textContent = "錯誤：" + e.message; }
+}
+
+async function load(symbol) {
+  try {
+    const c = await api("/api/config" + (symbol ? "?symbol=" + symbol : ""));
+    $("symbol").replaceChildren(...c.symbols.map((s) => el("option", { value: s, textContent: s, selected: s === c.symbol })));
+    build(c);
+  } catch (e) { $("status").textContent = "錯誤：" + e.message; }
+}
+
+function loadMermaid() {
+  return new Promise((resolve) => {
+    const s = el("script", { src: MERMAID_URL });
+    s.onload = () => resolve(true); s.onerror = () => resolve(false);
+    document.head.append(s);
+  });
+}
+
+const START_HINT = "請在 repo 根目錄執行 python backtest/tune_server.py，再用瀏覽器打開 http://127.0.0.1:8765/";
+
+function blocked(message) {
+  const err = $("err"); err.style.display = "block"; err.textContent = message;
+  for (const id of ["run", "copy", "reset", "symbol", "days"]) $(id).disabled = true;
+}
+
+async function start() {
+  if (location.protocol === "file:") {
+    blocked("這個頁面要由調參伺服器提供才能使用，不能直接雙擊開檔案。" + START_HINT);
+    return;
+  }
+  try { await api("/api/config"); }
+  catch (e) {
+    blocked("讀不到節點資料（/api/config：" + e.message + "）。目前的網址 " + location.origin + " 不是調參伺服器；"
+      + "Live Server 這類只提供檔案的伺服器沒有回測用的 API，所以看不到節點和幣種。" + START_HINT);
+    return;
+  }
+  try { flows = await api("/api/flows"); } catch (e) { flows = {}; }
+  mermaidOk = await loadMermaid();
+  if (mermaidOk) {
+    window.mermaid.initialize({ startOnLoad: false, theme: "base", flowchart: { htmlLabels: true, curve: "basis", useMaxWidth: false },
+      themeVariables: { darkMode: true, background: "#141926", primaryColor: "#232b3d", primaryTextColor: "#e6e8ee", primaryBorderColor: "#3d4b6b",
+        lineColor: "#6b7896", secondaryColor: "#232b3d", tertiaryColor: "#181d2a", edgeLabelBackground: "#141926", fontSize: "13px" } });
+    try { $("overview").innerHTML = (await window.mermaid.render("m-overview", OVERVIEW)).svg; } catch (e) { /* the page still works without it */ }
+  } else {
+    const err = $("err"); err.style.display = "block";
+    err.textContent = "流程圖需要連網載入 mermaid（" + MERMAID_URL + "），目前載入失敗，先用表單模式。連上網路後重新整理即可。";
+  }
+  await load();
+}
+
+$("run").addEventListener("click", run);
+$("reset").addEventListener("click", () => { cur = clone(base); $("toml").style.display = "none"; refresh(); });
+$("copy").addEventListener("click", copyToml);
+$("symbol").addEventListener("change", () => { $("results").replaceChildren(); $("note").style.display = "none"; load($("symbol").value); });
+start();
+</script>
+</body>
+</html>

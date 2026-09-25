@@ -1,7 +1,7 @@
 """Build the historical dataset of daily "Up or Down" questions: one CSV row per settled question.
 
-  python scripts/updown_dataset.py BTC ETH --days 730
-  python scripts/updown_dataset.py BTC --out-dir data/updown
+  python backtest/updown_dataset.py BTC ETH --days 730
+  python backtest/updown_dataset.py BTC --out-dir data/updown
 
 Each question compares the Binance 1-minute close at 12:00 ET on the settle day with 12:00 ET the day
 before (see updown.py). Times are stored in UTC (for joins and statistics) and in Taiwan time (what
@@ -25,7 +25,7 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import skill_path  # noqa: F401  (puts skills/tv-ta/scripts on sys.path)
 
 import fetch_ohlcv  # noqa: E402
 import updown  # noqa: E402
@@ -47,14 +47,11 @@ class Window:
 
 
 def repo_root() -> str:
-    return os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
+    return skill_path.REPO
 
 
 def default_out_dir() -> str:
-    """<repo>/data/updown when run from the source repo, else ~/.tv-ta/data/updown."""
-    if os.path.isdir(os.path.join(repo_root(), ".git")):
-        return os.path.join(repo_root(), "data", "updown")
-    return os.path.join(os.path.expanduser("~"), ".tv-ta", "data", "updown")
+    return os.path.join(repo_root(), "data", "updown")
 
 
 def windows(first: dt.date, last: dt.date) -> list[Window]:

@@ -1,7 +1,7 @@
 """Render the daily Up/Down dataset as a single-file HTML calendar heatmap.
 
-  python scripts/updown_heatmap.py                       # data/updown/*.csv -> <repo>/index.html
-  python scripts/updown_heatmap.py --data-dir data/updown --out heatmap.html
+  python backtest/updown_heatmap.py                       # data/updown/*.csv -> <repo>/index.html
+  python backtest/updown_heatmap.py --data-dir data/updown --out heatmap.html
 
 Layout follows https://crypto-calendar-heatmap.lovable.app/ : one card per month (oldest first),
 one square per day (Sunday first), green = Up and red = Down in four shades by size of the move,
@@ -24,10 +24,11 @@ import calendar
 import datetime as dt
 import glob
 import html
+import math
 import os
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import skill_path  # noqa: F401  (puts skills/tv-ta/scripts on sys.path)
 
 import updown_dataset  # noqa: E402
 
@@ -38,7 +39,7 @@ RANGE_LABELS = {12: "近 12 個月", 24: "近 2 年"}
 RANGES = (12, 24)  # months offered by the range switch; the longest one is the most that is drawn
 HIGHLIGHT_PCT = 10.0  # a month's cumulative return this large is shown in colour
 ICONS = {"BTC": ("#f7931a", "₿"), "ETH": ("#627eea", "Ξ")}  # fallback badge when there is no logo file
-COIN_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", "coins")
+COIN_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "coins")
 
 CSS = """
 :root{--bg:#10141f;--card:#181d2a;--line:#262d3d;--ink:#e6e8ee;--muted:#8a93a8;
@@ -109,7 +110,7 @@ document.addEventListener('scroll',hide,true);
 
 
 def coin_logo_css(symbols: list[str]) -> str:
-    """Rules that paint each coin's logo (assets/coins/<sym>.png, CoinMarketCap 64x64) as a data URI."""
+    """Rules that paint each coin's logo (backtest/assets/coins/<sym>.png, CoinMarketCap 64x64) as a data URI."""
     rules = []
     for sym in symbols:
         path = os.path.join(COIN_DIR, f"{sym.lower()}.png")
@@ -174,13 +175,21 @@ def pct(x: float) -> str:
     return f"{x * 100:.1f}%"
 
 
-def summary(rows: list[dict], cls: str) -> str:
+def monthly_average(rows: list[dict], months: int) -> tuple[float, float]:
+    """Average Up and Down days per month over `months` calendar months."""
+    up = sum(r["up"] for r in rows)
+    return up / months, (len(rows) - up) / months
+
+
+def summary(rows: list[dict], cls: str, months: int) -> str:
     up = sum(r["up"] for r in rows)
     n = len(rows)
+    avg_up, avg_down = monthly_average(rows, months)
     legend = ("".join(f'<i style="background:var(--r{i})"></i>' for i in (4, 3, 2, 1))
               + "".join(f'<i style="background:var(--g{i})"></i>' for i in (1, 2, 3, 4)))
     return (f'<div class="sum {cls}"><div><span>總天數 <b>{n}</b></span><span>上漲 <b>{up}</b> 天（{pct(up / n)}）</span>'
-            f'<span>下跌 <b>{n - up}</b> 天（{pct((n - up) / n)}）</span></div>'
+            f'<span>下跌 <b>{n - up}</b> 天（{pct((n - up) / n)}）</span>'
+            f'<span>平均每月 <b>{math.floor(avg_up + 0.5)}</b> 漲　<b>{math.floor(avg_down + 0.5)}</b> 跌</span></div>'
             f'<div class="legend">跌<em></em>{legend}<em></em>漲</div></div>')
 
 
@@ -194,8 +203,8 @@ def symbol_section(symbol: str, rows: list[dict]) -> str:
         # a class per range that does not include this month; the CSS decides which one applies
         hidden = "".join(f" o{n}" for n in RANGES if key not in recent[n])
         cards += month_card(key[0], key[1], rows, hidden)
-    sums = "".join(summary([r for r in rows if (r["date"].year, r["date"].month) in recent[n]], f"s{n}")
-                   for n in RANGES)
+    sums = "".join(summary([r for r in rows if (r["date"].year, r["date"].month) in recent[n]], f"s{n}",
+                           len(recent[n])) for n in RANGES)
     return f'<section class="sec" id="{symbol}"><div class="months">{cards}</div>{sums}</section>'
 
 
@@ -245,24 +254,22 @@ def render(datasets: dict[str, list[dict]]) -> str:
 <div class="pill">{range_switch}</div></div></header>
 {"".join(symbol_section(s, rows) for s, rows in datasets.items())}
 <p class="note">每格一題，放在結算日（美東）。台灣時間為當日 00:00 或 01:00 到隔天同時間；滑鼠移到格子上看目標價、結算價和起訖時間。
-顏色深淺依漲跌幅：&lt;0.5%、&lt;1.5%、&lt;3%、≥3%。資料由 scripts/updown_dataset.py 產生；非投資建議。</p>
+顏色深淺依漲跌幅：&lt;0.5%、&lt;1.5%、&lt;3%、≥3%。資料由 backtest/updown_dataset.py 產生；非投資建議。</p>
 </main><div id="tip" role="tooltip"></div><script>{SCRIPT}</script></body></html>"""
 
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Render the Up/Down dataset as an HTML calendar heatmap.")
     ap.add_argument("--data-dir", default=None, help="folder with <symbol>.csv files (default: <repo>/data/updown)")
-    ap.add_argument("--out", default=None, help="default: <repo>/index.html, else <data-dir>/heatmap.html")
+    ap.add_argument("--out", default=None, help="default: <repo>/index.html")
     args = ap.parse_args(argv)
     data_dir = args.data_dir or updown_dataset.default_out_dir()
     paths = sorted(glob.glob(os.path.join(data_dir, "*.csv")))
     if not paths:
-        print(f"no CSV files in {data_dir}; run scripts/updown_dataset.py first", file=sys.stderr)
+        print(f"no CSV files in {data_dir}; run backtest/updown_dataset.py first", file=sys.stderr)
         return 2
     datasets = {os.path.splitext(os.path.basename(p))[0].upper(): load(p) for p in paths}
-    in_repo = os.path.isdir(os.path.join(updown_dataset.repo_root(), ".git"))
-    out = args.out or (os.path.join(updown_dataset.repo_root(), "index.html") if in_repo
-                       else os.path.join(data_dir, "heatmap.html"))
+    out = args.out or os.path.join(updown_dataset.repo_root(), "index.html")
     with open(out, "w", encoding="utf-8") as f:
         f.write(render(datasets))
     sys.stdout.reconfigure(encoding="utf-8")

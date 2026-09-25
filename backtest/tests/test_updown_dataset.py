@@ -10,7 +10,7 @@ import tempfile
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, "..", "scripts"))
+sys.path.insert(0, os.path.join(HERE, ".."))
 
 import updown_dataset as ds  # noqa: E402
 import updown_heatmap as hm  # noqa: E402
@@ -78,6 +78,18 @@ class HeatmapTest(unittest.TestCase):
 
     def test_level_has_four_shades(self):
         self.assertEqual([hm.level(x) for x in (0.1, -0.7, 2.0, -5.0)], [1, 2, 3, 4])
+
+    def test_monthly_average_splits_up_and_down_over_the_months(self):
+        rows = [{"up": True}] * 18 + [{"up": False}] * 6
+        self.assertEqual(hm.monthly_average(rows, 12), (1.5, 0.5))
+
+    def test_summary_shows_the_monthly_average(self):
+        rows = [{"up": True}] * 20 + [{"up": False}] * 10
+        self.assertIn("平均每月 <b>10</b> 漲　<b>5</b> 跌", hm.summary(rows, "s12", 2))
+
+    def test_summary_rounds_the_monthly_average_to_whole_days(self):
+        rows = [{"up": True}] * 181 + [{"up": False}] * 178  # 15.08 and 14.83 over 12 months
+        self.assertIn("平均每月 <b>15</b> 漲　<b>15</b> 跌", hm.summary(rows, "s12", 12))
 
     def test_month_total_compounds(self):
         rows = [{"ret": 10.0}, {"ret": -10.0}]

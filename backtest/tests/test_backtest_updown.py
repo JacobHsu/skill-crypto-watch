@@ -1,4 +1,4 @@
-"""Offline tests for scripts/backtest_updown.py (pure helpers, no network).
+"""Offline tests for backtest/backtest_updown.py (pure helpers, no network).
 
   python -m unittest discover -s tests
 """
@@ -9,7 +9,7 @@ import sys
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, "..", "scripts"))
+sys.path.insert(0, os.path.join(HERE, ".."))
 
 import backtest_updown as bt  # noqa: E402
 
