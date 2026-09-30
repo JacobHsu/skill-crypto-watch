@@ -677,6 +677,10 @@ def r_roc(x, p, _):
 # An event node answers "did X just happen?". 0 means it did not fire; decide.py then leaves it
 # out of the composite instead of counting it as a neutral vote.
 
+def r_external_event(x, p, _):
+    """IDLE placeholder replaced by a validated external event at runtime."""
+    return Result(0, "未提供外部事件資料", choice="no_signal", source="external")
+
 def _divergence(x, osc, lb, recent):
     """+1 bullish (price new low, oscillator higher low), -1 bearish, 0 none, None if short."""
     if len(x.c) < lb + recent or any(v is None for v in osc[-lb - recent:]):
@@ -795,6 +799,7 @@ RULES = {
     "ma_align": r_ma_align, "donchian": r_donchian, "agree": r_agree, "zigzag": r_zigzag,
     "supertrend": r_supertrend, "linreg": r_linreg, "sar_x_linreg": r_sar_x_linreg, "vwma": r_vwma,
     "macd": r_macd, "macd_cross": r_macd_cross, "supertrend_flip": r_supertrend_flip,
+    "external_event": r_external_event,
     "squeeze_fire": r_squeeze_fire, "di_cross": r_di_cross, "structure_break": r_structure_break,
     "rsi_divergence": _div_rule("rsi", "RSI"), "uo_divergence": _div_rule("uo", "UO"),
     "obv_divergence": _div_rule("obv", "OBV"), "dmi": r_dmi, "cci": r_cci, "supertrend_x_macd": r_supertrend_x_macd, "hma": r_hma, "rsi": r_rsi, "stoch_rsi": r_stoch_rsi,

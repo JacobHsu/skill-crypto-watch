@@ -139,6 +139,63 @@ class ConfigTests(unittest.TestCase):
         self.assertLess(fired["composite"], before["composite"])
         self.assertEqual(fired["checklist"]["tally"], before["checklist"]["tally"])  # events stay out of the tally
 
+    def test_polymarket_rapid_cross_is_enabled_choice_event(self):
+        cfg, _, _ = run.load_config("BTC", CONFIG)
+        node = next(n for n in cfg if n["id"] == "polymarket_rapid_cross")
+        self.assertEqual(node["section"], "E")
+        self.assertEqual(node["type"], "choice")
+        self.assertEqual(node["weight"], 1.0)
+        self.assertTrue(node.get("enabled", True))
+
+    def test_polymarket_confirmed_choice_is_weighted_and_idle_is_not(self):
+        import json
+        import tempfile
+
+        _, res, before, cfg, profile = run_all(0.4)
+        node = next(n for n in cfg if n["id"] == "polymarket_rapid_cross")
+
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as f:
+            json.dump({
+                "status": "triggered", "asset": "BTC", "direction": "DOWN",
+                "confirmed": True, "cross_at_t_plus_min": 8,
+                "signal_note": "Polymarket快速反向交叉 → DOWN（T+8m；歷史樣本命中64.8%）",
+            }, f, ensure_ascii=False)
+            path = f.name
+        try:
+            ext = run.load_event_results(path, "BTC")
+        finally:
+            os.unlink(path)
+
+        self.assertEqual(ext["polymarket_rapid_cross"].choice, "down")
+        self.assertEqual(ext["polymarket_rapid_cross"].score, -1)
+        res["polymarket_rapid_cross"] = ext["polymarket_rapid_cross"]
+        after = decide.compose(cfg, res, profile)
+        row = next(r for r in after["sections"]["E"]["rows"] if r["id"] == "polymarket_rapid_cross")
+        self.assertEqual(row["signal"], decide.SELL)
+        self.assertEqual(row["effective_weight"], 1.0)
+        self.assertLess(after["composite"], before["composite"])
+
+        res["polymarket_rapid_cross"] = nodes_mod.Result(
+            0, "未出現已確認的快速反向交叉", choice="no_signal", source="external"
+        )
+        idle = decide.compose(cfg, res, profile)
+        row = next(r for r in idle["sections"]["E"]["rows"] if r["id"] == "polymarket_rapid_cross")
+        self.assertEqual(row["signal"], decide.IDLE)
+        self.assertEqual(row["effective_weight"], 0.0)
+
+    def test_polymarket_event_rejects_asset_mismatch(self):
+        import json
+        import tempfile
+
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as f:
+            json.dump({"status": "triggered", "asset": "ETH", "direction": "UP", "confirmed": True}, f)
+            path = f.name
+        try:
+            with self.assertRaisesRegex(ValueError, "asset ETH.*BTC"):
+                run.load_event_results(path, "BTC")
+        finally:
+            os.unlink(path)
+
     def test_trade_plan_long_is_consistent(self):
         ctx, _, _, _, profile = run_all(0.4)
         plan = decide.trade_plan(ctx, decide.BUY, profile["plan"])

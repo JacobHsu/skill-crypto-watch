@@ -288,6 +288,21 @@ params = { lookback = 3 }
 
 # More event nodes (section E). Each stays off until scripts/evaluate_node.py passes it.
 
+# External Polymarket daily-market event. A confirmed UP/DOWN reversal is a
+# Choice vote; no signal is IDLE and contributes zero weight. Weight 1.0 is
+# deliberately conservative until forward paired validation is available.
+[[node]]
+id = "polymarket_rapid_cross"
+section = "E"
+name = "POLYMARKET RAPID CROSS"
+zh = "Polymarket 10分鐘內反向交叉"
+group = "prediction_market"
+type = "choice"
+rule = "external_event"
+weight = 1.0
+enabled = true
+params = { choices = ["up", "down", "no_signal"] }
+
 [[node]]
 id = "rsi_divergence"
 section = "E"

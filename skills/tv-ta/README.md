@@ -7,6 +7,7 @@ tv-ta 是一個 agent skill，Claude Code、Hermes，以及其他支援 Agent Sk
 - 每個檢核項目都是一個有型別的判斷節點（Score / Choice / Noul）；
 - 用可調整的權重和 gate 合成最後結論，輸出 BUY / WAIT / SELL、逐項的數值證據，以及進場區、停損和目標價；
 - 另外能回答預測市場（Polymarket、幣安錢包）的一日漲跌題。
+- 可用 `--event-results` 把已確認的 Polymarket 10分鐘快速反向交叉作為一個 `Choice` 事件節點納入加權；UP=`+1`、DOWN=`-1`、未觸發=`IDLE`，預設權重 `1.0`。
 
 以前是靠人或 AI 看圖判斷，但 TradingView 圖表是跨網域 iframe 裡的 canvas，讀不到數值，準確度有限。tv-ta 直接計算數值，同一根 K 棒每次跑出來的結果都一樣。
 

@@ -40,6 +40,43 @@ def load_toml(path):
         return tomllib.load(f)
 
 
+def load_event_results(path, symbol=None):
+    """Load a detector JSON as typed external event-node results.
+
+    A confirmed Polymarket rapid cross is a Choice vote (+1 UP / -1 DOWN).
+    Every non-confirmed state is IDLE (score 0), not a neutral vote. The
+    historical 64.8% is kept as evidence metadata and is never used as score.
+    """
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    asset = str(data.get("asset") or "").upper()
+    if symbol and asset and asset != symbol.upper():
+        raise ValueError(f"event asset {asset} does not match analysis symbol {symbol.upper()}")
+
+    status = data.get("status")
+    direction = str(data.get("direction") or "").upper()
+    confirmed = data.get("confirmed") is True
+    if status == "triggered" and confirmed and direction in ("UP", "DOWN"):
+        score = 1 if direction == "UP" else -1
+        evidence = data.get("signal_note") or (
+            f"Polymarket快速反向交叉 → {direction}（交叉後維持10分鐘確認）"
+        )
+        result = nodes_mod.Result(
+            score, str(evidence), choice=direction.lower(),
+            data={
+                "asset": asset or None,
+                "cross_at_t_plus_min": data.get("cross_at_t_plus_min"),
+                "historical_accuracy_pct": 64.8,
+                "historical_sample_days": 125,
+            },
+            source="external",
+        )
+    else:
+        reason = "尚未完成交叉後10分鐘確認" if status == "triggered" else "未出現已確認的快速反向交叉"
+        result = nodes_mod.Result(0, reason, choice="no_signal", source="external")
+    return {"polymarket_rapid_cross": result}
+
+
 def user_home():
     """Where a user's own tuning and logs live, outside the skill folder, so reinstalling or
     updating the plugin never overwrites them."""
@@ -111,9 +148,15 @@ def load_config(symbol, config_dir=None, user_dir=None):
     return nodes, profile, applied
 
 
-def analyse(symbol, tf, nodes, profile, bars, htf_bars, use_jev):
+def analyse(symbol, tf, nodes, profile, bars, htf_bars, use_jev, event_results=None):
     ctx = nodes_mod.Context(bars, htf_bars, profile.get("indicators", {}))
     results = nodes_mod.evaluate(ctx, nodes)
+    if event_results:
+        known = {n["id"] for n in nodes if n.get("enabled", True)}
+        unknown = sorted(set(event_results) - known)
+        if unknown:
+            raise ValueError(f"unknown external event node(s): {', '.join(unknown)}")
+        results.update(event_results)
     warnings = jev_client.apply(nodes, results, profile.get("jev", {})) if use_jev else []
     summary = decide.compose(nodes, results, profile)
     plan = decide.trade_plan(ctx, summary["verdict"], profile.get("plan", {}))
@@ -217,6 +260,7 @@ def main(argv=None):
     ap.add_argument("--log", action="store_true",
                     help="append a JSONL record to $TV_TA_LOG_DIR (default ~/.tv-ta/logs)")
     ap.add_argument("--no-jev", action="store_true", help="never call Jev, even if enabled")
+    ap.add_argument("--event-results", help="external typed event JSON, e.g. Polymarket rapid-cross output")
     ap.add_argument("--as-of", help="replay the past: analyse with only the candles closed before this "
                                     "UTC time, e.g. 2026-09-22T16:00")
     ap.add_argument("--config", help="base config directory (default: the skill's config/)")
@@ -247,6 +291,11 @@ def main(argv=None):
         t = t.replace(tzinfo=dt.timezone.utc) if t.tzinfo is None else t.astimezone(dt.timezone.utc)
         as_of = int(t.timestamp() * 1000)
     live = (args.live or tfp.get("live", False)) and not as_of
+    try:
+        event_results = load_event_results(args.event_results, symbol) if args.event_results else None
+    except (OSError, ValueError, json.JSONDecodeError) as e:
+        print(f"event results error: {e}", file=sys.stderr)
+        return 2
     limit = tfp.get("bars", 500)
     tfs = [tf] if args.no_context else list(dict.fromkeys([tf] + [t for t in tfp.get("context", []) if t in htf_map]))
 
@@ -258,7 +307,7 @@ def main(argv=None):
         runs = {}
         for t, (main, higher) in wanted.items():
             runs[t] = analyse(symbol, t, nodes, profile, bars[main], bars[higher],
-                              use_jev=(t == tf and not args.no_jev))
+                              use_jev=(t == tf and not args.no_jev), event_results=event_results)
     except fetch_ohlcv.FetchError as e:
         print(f"market data error: {e}", file=sys.stderr)
         return 3

@@ -143,6 +143,7 @@ def main(argv=None):
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--brief", action="store_true", help="omit the per-timeframe evidence tables")
     ap.add_argument("--no-user-config", action="store_true")
+    ap.add_argument("--event-results", help="external typed event JSON, e.g. Polymarket rapid-cross output")
     args = ap.parse_args(argv)
 
     symbol = args.symbol.upper().replace("USDT", "") or "BTC"
@@ -164,6 +165,11 @@ def main(argv=None):
         return 2
     cfg = {"timeframes": ["1h", "4h", "1d"], "scale": 5.0, "max_tilt": 10.0,
            "display_utc_offset": 8, "display_tz_name": "台灣時間", **profile.get("updown", {})}
+    try:
+        event_results = run.load_event_results(args.event_results, symbol) if args.event_results else None
+    except (OSError, ValueError, json.JSONDecodeError) as e:
+        print(f"event results error: {e}", file=sys.stderr)
+        return 2
     local = dt.timezone(dt.timedelta(hours=cfg["display_utc_offset"]))
     htf_map = profile["timeframes"]["htf"]
     start, settle = question_window(now)
@@ -179,7 +185,10 @@ def main(argv=None):
         bars = fetch_ohlcv.fetch_many(symbol, [r for pair in wanted.values() for r in pair], as_of=as_of)
         scores = {}
         for tf, (main, higher) in wanted.items():
-            _, _, summary, _, _ = run.analyse(symbol, tf, nodes, profile, bars[main], bars[higher], use_jev=False)
+            _, _, summary, _, _ = run.analyse(
+                symbol, tf, nodes, profile, bars[main], bars[higher],
+                use_jev=False, event_results=event_results,
+            )
             scores[tf] = summary
     except fetch_ohlcv.FetchError as e:
         print(f"market data error: {e}", file=sys.stderr)
@@ -214,6 +223,12 @@ def main(argv=None):
                                                 "evidence": r["evidence"]}
                                       for r in widget_rows(s).values()}}
                        for tf, s in scores.items()},
+        "event_nodes": {
+            tf: {r["id"]: {"choice": r["choice"], "score": r["score"],
+                            "weight": r["effective_weight"], "evidence": r["evidence"]}
+                 for r in s["sections"]["E"]["rows"]}
+            for tf, s in scores.items()
+        },
         "config_layers": layers,
     }
     if args.json:
@@ -222,6 +237,18 @@ def main(argv=None):
 
     sys.stdout.reconfigure(encoding="utf-8")
     tf_rows = "\n".join(f"| {tf.upper()} | {s['composite']:+.2f} | {s['verdict']} |" for tf, s in scores.items())
+    first_summary = next(iter(scores.values()))
+    active_events = [r for r in first_summary["sections"]["E"]["rows"] if r["id"] == "polymarket_rapid_cross"]
+    event_text = ""
+    if active_events:
+        r = active_events[0]
+        choice = (r["choice"] or "no_signal").upper()
+        event_text = (
+            "\n## 外部 Choice 節點\n\n"
+            "| 節點 | Choice | 分數 | 有效權重 | 證據 |\n|---|---|---|---|---|\n"
+            f"| Polymarket 10分鐘內反向交叉 | {choice} | {r['score']:+g} | "
+            f"{r['effective_weight']:g} | {r['evidence']} |\n"
+        )
     print(f"""# {result['question']}：結束時間 {result['settle_local']} {tz}
 
 {'**回放模式**：以 ' + result['as_of'] + ' UTC 當下看得到的資料作答' + chr(10) if as_of else ''}
@@ -240,7 +267,7 @@ def main(argv=None):
 | 級別 | 加權分數 | 判斷 |
 |---|---|---|
 {tf_rows}
-
+{event_text}
 {render_widget_detail(symbol, scores, not args.brief)}
 | 機率拆解 | 值 |
 |---|---|

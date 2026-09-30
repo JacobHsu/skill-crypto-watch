@@ -135,6 +135,25 @@ only some (`run BTC ETH`); pass `--json` for machine-readable output.
   (writes nothing) and quote both leans and the nodes that drive the learned one. To show the running
   scoreboard without logging, run `python scripts/forward_log.py report`.
 
+## Add external prediction-market signals
+
+Raw Polymarket `outcomePrices` are market consensus, not another technical-indicator vote. A predeclared event pattern with historical validation may, however, enter the TypeSafe-style composite as a typed event node.
+
+The shipped `polymarket_rapid_cross` node is a **Choice** event:
+
+- Pass the frozen detector JSON with `--event-results <path>`.
+- Confirmed `UP` maps to score `+1`, confirmed `DOWN` to `-1`, and `no_signal` to `0`.
+- It lives in section `E`; `no_signal` is `IDLE` with zero effective weight, so it cannot dilute the composite.
+- Default weight is `1.0`. The BTC historical 64.8% over 125 signal days is provenance for a nonzero weight, not Jev confidence and not the node score.
+- Only `status=triggered` plus `confirmed=true` votes. Asset mismatch fails closed.
+
+```
+python scripts/run.py BTC --tf 4h --event-results /path/to/BTC_rapid_cross.json
+python scripts/updown.py BTC --event-results /path/to/BTC_rapid_cross.json
+```
+
+For replay, use time-aligned CLOB history rather than current Gamma odds. Keep other market odds as context unless they have their own predeclared, separately validated event rule.
+
 ## Tune the decision model
 
 Read `references/node_design.md` before changing anything. The skill's own `config/`
