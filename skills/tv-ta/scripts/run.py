@@ -56,7 +56,14 @@ def load_event_results(path, symbol=None):
     status = data.get("status")
     direction = str(data.get("direction") or "").upper()
     confirmed = data.get("confirmed") is True
-    if status == "triggered" and confirmed and direction in ("UP", "DOWN"):
+    if asset and asset != "BTC":
+        result = nodes_mod.Result(
+            0,
+            "此快速反向交叉權重目前只由BTC歷史樣本校準；非BTC保持IDLE",
+            choice="no_signal",
+            source="external",
+        )
+    elif status == "triggered" and confirmed and direction in ("UP", "DOWN"):
         score = 1 if direction == "UP" else -1
         evidence = data.get("signal_note") or (
             f"Polymarket快速反向交叉 → {direction}（交叉後維持10分鐘確認）"

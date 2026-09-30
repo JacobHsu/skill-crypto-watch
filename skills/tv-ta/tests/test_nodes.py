@@ -196,6 +196,22 @@ class ConfigTests(unittest.TestCase):
         finally:
             os.unlink(path)
 
+    def test_polymarket_rapid_cross_stays_idle_for_uncalibrated_eth(self):
+        import json
+        import tempfile
+
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as f:
+            json.dump({"status": "triggered", "asset": "ETH", "direction": "UP", "confirmed": True}, f)
+            path = f.name
+        try:
+            ext = run.load_event_results(path, "ETH")
+        finally:
+            os.unlink(path)
+        r = ext["polymarket_rapid_cross"]
+        self.assertEqual(r.score, 0)
+        self.assertEqual(r.choice, "no_signal")
+        self.assertIn("BTC", r.evidence)
+
     def test_trade_plan_long_is_consistent(self):
         ctx, _, _, _, profile = run_all(0.4)
         plan = decide.trade_plan(ctx, decide.BUY, profile["plan"])
